@@ -33,7 +33,7 @@ func getEthPrice() float64 {
 
 	r, err := http.Get(url)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 	defer r.Body.Close()
 
@@ -42,7 +42,7 @@ func getEthPrice() float64 {
 
 	amount, err := strconv.ParseFloat(data.Data.Amount, 64)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal(err)
 	}
 
 	return amount
@@ -63,7 +63,20 @@ func getClient(ctx context.Context) (*http.Client, error) {
 	return client, nil
 }
 
-func update() {
+func update(updateCall *sheets.SpreadsheetsValuesUpdateCall, rb *sheets.ValueRange) {
+	newPrice := getEthPrice()
+	rb.Values[0][0] = newPrice
+
+	_, err := updateCall.Do()
+	if err != nil {
+		update(updateCall, rb)
+		time.Sleep(time.Second)
+	}
+
+	fmt.Println("Changed to", newPrice)
+}
+
+func startWatching() {
 	ctx := context.Background()
 
 	c, err := getClient(ctx)
@@ -77,42 +90,29 @@ func update() {
 	}
 
 	// The ID of the spreadsheet to update.
-	spreadsheetId := "1CJM-GAnXG5YTFvDOybJ0-FOHH1ZHT9SHkyNh8uAW0aQ"
+	spreadsheetID := "1CJM-GAnXG5YTFvDOybJ0-FOHH1ZHT9SHkyNh8uAW0aQ"
 
 	// The A1 notation of the values to update.
 	range2 := "K5"
 
-	newPrice := getEthPrice()
-
 	rb := &sheets.ValueRange{
 		// will be replaced.
 		Values: [][]interface{}{
-			{newPrice},
+			{0},
 		},
 	}
 
 	valueService := sheetsService.Spreadsheets.Values
-	updateCall := valueService.Update(spreadsheetId, range2, rb)
+	updateCall := valueService.Update(spreadsheetID, range2, rb)
 	updateCall = updateCall.Context(ctx)
 	updateCall = updateCall.ValueInputOption("USER_ENTERED")
 
 	for {
-		_, err = updateCall.Do()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Println("Changed to ", newPrice)
-
+		update(updateCall, rb)
 		time.Sleep(time.Second)
-
-		newPrice = getEthPrice()
-		rb.Values = [][]interface{}{
-			{newPrice},
-		}
 	}
 }
 
 func main() {
-	update()
+	startWatching()
 }
