@@ -28,24 +28,32 @@ type result struct {
 	} `json:"warnings"`
 }
 
-func getEthPrice() float64 {
+func getEthPrice() <-chan float64 {
 	url := "https://api.coinbase.com/v2/prices/eth-usd/spot?quote=true"
+	client := http.Client{}
 
-	r, err := http.Get(url)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer r.Body.Close()
+	amountChan := make(chan float64)
+	go func() {
+		for {
+			r, err := client.Get(url)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer r.Body.Close()
 
-	data := result{}
-	json.NewDecoder(r.Body).Decode(&data)
+			data := result{}
+			json.NewDecoder(r.Body).Decode(&data)
 
-	amount, err := strconv.ParseFloat(data.Data.Amount, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
+			amount, err := strconv.ParseFloat(data.Data.Amount, 64)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-	return amount
+			amountChan <- amount
+		}
+	}()
+
+	return amountChan
 }
 
 func getClient(ctx context.Context) (*http.Client, error) {
@@ -63,13 +71,15 @@ func getClient(ctx context.Context) (*http.Client, error) {
 	return client, nil
 }
 
-func update(updateCall *sheets.SpreadsheetsValuesUpdateCall, rb *sheets.ValueRange) {
-	newPrice := getEthPrice()
+func update(updateCall *sheets.SpreadsheetsValuesUpdateCall,
+	rb *sheets.ValueRange, amountChan <-chan float64) {
+
+	newPrice := <-amountChan
 	rb.Values[0][0] = newPrice
 
 	_, err := updateCall.Do()
 	if err != nil {
-		update(updateCall, rb)
+		update(updateCall, rb, amountChan)
 		time.Sleep(time.Second)
 	}
 
@@ -107,8 +117,10 @@ func startWatching() {
 	updateCall = updateCall.Context(ctx)
 	updateCall = updateCall.ValueInputOption("USER_ENTERED")
 
+	amountChan := getEthPrice()
+
 	for {
-		update(updateCall, rb)
+		update(updateCall, rb, amountChan)
 		time.Sleep(time.Second)
 	}
 }
