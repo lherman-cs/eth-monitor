@@ -39,10 +39,10 @@ func getEthPrice() <-chan float64 {
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer r.Body.Close()
 
 			data := result{}
 			json.NewDecoder(r.Body).Decode(&data)
+			r.Body.Close()
 
 			amount, err := strconv.ParseFloat(data.Data.Amount, 64)
 			if err != nil {
