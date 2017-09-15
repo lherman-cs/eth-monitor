@@ -80,7 +80,7 @@ func update(updateCall *sheets.SpreadsheetsValuesUpdateCall,
 	_, err := updateCall.Do()
 	if err != nil {
 		update(updateCall, rb, amountChan)
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 	}
 
 	fmt.Println("Changed to", newPrice)
