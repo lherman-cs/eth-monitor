@@ -121,7 +121,7 @@ func startWatching() {
 
 	for {
 		update(updateCall, rb, amountChan)
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 	}
 }
 
